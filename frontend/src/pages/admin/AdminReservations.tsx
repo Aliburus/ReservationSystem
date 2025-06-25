@@ -1,46 +1,64 @@
-import React, { useState } from 'react';
-import { Search, Filter, Calendar, MapPin, User, CreditCard, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { mockReservations, mockTrips, mockUsers } from '../../data/mockData';
-import { Reservation, Trip, User as UserType } from '../../types';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import React, { useState } from "react";
+import {
+  Search,
+  Filter,
+  Calendar,
+  MapPin,
+  User,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
+import { mockReservations, mockTrips } from "../../data/mockData";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
 
 const AdminReservations: React.FC = () => {
-  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [reservations, setReservations] = useState(mockReservations);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
-  const filteredReservations = reservations.filter(reservation => {
-    const trip = mockTrips.find(t => t.id === reservation.tripId);
-    const user = mockUsers.find(u => u.id === reservation.userId);
-    
-    const matchesSearch = 
-      reservation.passengerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.passengerPhone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (trip && (trip.origin.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                trip.destination.toLowerCase().includes(searchTerm.toLowerCase()))) ||
-      (user && (user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.email.toLowerCase().includes(searchTerm.toLowerCase())));
-    
+  const filteredReservations = reservations.filter((reservation) => {
+    const trip = mockTrips.find((t) => t.id === reservation.tripId);
+
+    const matchesSearch =
+      reservation.passengerName
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      reservation.passengerPhone
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (trip &&
+        (trip.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          trip.destination.toLowerCase().includes(searchTerm.toLowerCase()))) ||
+      (reservation.userId &&
+        reservation.userId.toLowerCase().includes(searchTerm.toLowerCase()));
+
     const matchesStatus = !statusFilter || reservation.status === statusFilter;
-    const matchesDate = !dateFilter || reservation.bookingDate.startsWith(dateFilter);
+    const matchesDate =
+      !dateFilter || reservation.bookingDate.startsWith(dateFilter);
 
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const handleUpdateReservationStatus = (reservationId: string, newStatus: 'confirmed' | 'cancelled') => {
-    setReservations(prev => 
-      prev.map(r => r.id === reservationId ? { ...r, status: newStatus } : r)
+  const handleUpdateReservationStatus = (
+    reservationId: string,
+    newStatus: "confirmed" | "cancelled"
+  ) => {
+    setReservations((prev) =>
+      prev.map((r) =>
+        r.id === reservationId ? { ...r, status: newStatus } : r
+      )
     );
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case "confirmed":
         return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'cancelled':
+      case "cancelled":
         return <XCircle className="h-5 w-5 text-red-600" />;
       default:
         return <Clock className="h-5 w-5 text-yellow-600" />;
@@ -49,39 +67,47 @@ const AdminReservations: React.FC = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return 'Onaylandı';
-      case 'cancelled':
-        return 'İptal Edildi';
+      case "confirmed":
+        return "Onaylandı";
+      case "cancelled":
+        return "İptal Edildi";
       default:
-        return 'Beklemede';
+        return "Beklemede";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return 'bg-green-50 text-green-800 border-green-200';
-      case 'cancelled':
-        return 'bg-red-50 text-red-800 border-red-200';
+      case "confirmed":
+        return "bg-green-50 text-green-800 border-green-200";
+      case "cancelled":
+        return "bg-red-50 text-red-800 border-red-200";
       default:
-        return 'bg-yellow-50 text-yellow-800 border-yellow-200';
+        return "bg-yellow-50 text-yellow-800 border-yellow-200";
     }
   };
 
   const totalRevenue = reservations
-    .filter(r => r.status === 'confirmed')
+    .filter((r) => r.status === "confirmed")
     .reduce((sum, r) => sum + r.totalPrice, 0);
 
-  const confirmedCount = reservations.filter(r => r.status === 'confirmed').length;
-  const cancelledCount = reservations.filter(r => r.status === 'cancelled').length;
+  const confirmedCount = reservations.filter(
+    (r) => r.status === "confirmed"
+  ).length;
+  const cancelledCount = reservations.filter(
+    (r) => r.status === "cancelled"
+  ).length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Rezervasyon Yönetimi</h1>
-        <p className="text-gray-600 mt-2">Tüm rezervasyonları görüntüleyin ve yönetin</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Rezervasyon Yönetimi
+        </h1>
+        <p className="text-gray-600 mt-2">
+          Tüm rezervasyonları görüntüleyin ve yönetin
+        </p>
       </div>
 
       {/* Stats */}
@@ -92,8 +118,12 @@ const AdminReservations: React.FC = () => {
               <Calendar className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Toplam Rezervasyon</p>
-              <p className="text-2xl font-bold text-gray-900">{reservations.length}</p>
+              <p className="text-sm font-medium text-gray-600">
+                Toplam Rezervasyon
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {reservations.length}
+              </p>
             </div>
           </div>
         </div>
@@ -105,7 +135,9 @@ const AdminReservations: React.FC = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Onaylanan</p>
-              <p className="text-2xl font-bold text-gray-900">{confirmedCount}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {confirmedCount}
+              </p>
             </div>
           </div>
         </div>
@@ -117,7 +149,9 @@ const AdminReservations: React.FC = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">İptal Edilen</p>
-              <p className="text-2xl font-bold text-gray-900">{cancelledCount}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {cancelledCount}
+              </p>
             </div>
           </div>
         </div>
@@ -129,7 +163,9 @@ const AdminReservations: React.FC = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600">Toplam Gelir</p>
-              <p className="text-2xl font-bold text-gray-900">₺{totalRevenue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ₺{totalRevenue.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -225,9 +261,10 @@ const AdminReservations: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredReservations.map((reservation) => {
-                  const trip = mockTrips.find(t => t.id === reservation.tripId);
-                  const user = mockUsers.find(u => u.id === reservation.userId);
-                  
+                  const trip = mockTrips.find(
+                    (t) => t.id === reservation.tripId
+                  );
+
                   return (
                     <tr key={reservation.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -236,7 +273,10 @@ const AdminReservations: React.FC = () => {
                             #{reservation.id.slice(-8)}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {format(new Date(reservation.bookingDate), 'dd/MM/yyyy HH:mm')}
+                            {format(
+                              new Date(reservation.bookingDate),
+                              "dd/MM/yyyy HH:mm"
+                            )}
                           </div>
                         </div>
                       </td>
@@ -248,11 +288,6 @@ const AdminReservations: React.FC = () => {
                           <div className="text-sm text-gray-500">
                             {reservation.passengerPhone}
                           </div>
-                          {user && (
-                            <div className="text-xs text-gray-400">
-                              {user.email}
-                            </div>
-                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -263,7 +298,11 @@ const AdminReservations: React.FC = () => {
                               {trip.origin} → {trip.destination}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {format(new Date(trip.departureDate), 'dd/MM/yyyy')} - {trip.departureTime}
+                              {format(
+                                new Date(trip.departureDate),
+                                "dd/MM/yyyy"
+                              )}{" "}
+                              - {trip.departureTime}
                             </div>
                             <div className="text-xs text-gray-400">
                               {trip.busPlate}
@@ -273,7 +312,7 @@ const AdminReservations: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {reservation.seatNumbers.join(', ')}
+                          {reservation.seatNumbers.join(", ")}
                         </div>
                         <div className="text-xs text-gray-500">
                           {reservation.seatNumbers.length} koltuk
@@ -288,24 +327,40 @@ const AdminReservations: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(reservation.status)}`}>
+                        <div
+                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(
+                            reservation.status
+                          )}`}
+                        >
                           {getStatusIcon(reservation.status)}
-                          <span className="ml-1">{getStatusText(reservation.status)}</span>
+                          <span className="ml-1">
+                            {getStatusText(reservation.status)}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
-                          {reservation.status === 'confirmed' && (
+                          {reservation.status === "confirmed" && (
                             <button
-                              onClick={() => handleUpdateReservationStatus(reservation.id, 'cancelled')}
+                              onClick={() =>
+                                handleUpdateReservationStatus(
+                                  reservation.id,
+                                  "cancelled"
+                                )
+                              }
                               className="text-red-600 hover:text-red-900 text-xs px-2 py-1 border border-red-300 rounded hover:bg-red-50"
                             >
                               İptal Et
                             </button>
                           )}
-                          {reservation.status === 'cancelled' && (
+                          {reservation.status === "cancelled" && (
                             <button
-                              onClick={() => handleUpdateReservationStatus(reservation.id, 'confirmed')}
+                              onClick={() =>
+                                handleUpdateReservationStatus(
+                                  reservation.id,
+                                  "confirmed"
+                                )
+                              }
                               className="text-green-600 hover:text-green-900 text-xs px-2 py-1 border border-green-300 rounded hover:bg-green-50"
                             >
                               Onayla

@@ -1,7 +1,8 @@
 import axios from "axios";
-import { Trip } from "../types";
+import { Trip } from "../pages/admin/AdminTrips";
+// import { Trip } from "../types";
 
-const API_URL = "/api/trips";
+const API_URL = import.meta.env.VITE_API_URL + "/api/trips";
 
 export const getTrips = async (params?: any) => {
   const res = await axios.get<Trip[]>(API_URL, { params });
@@ -34,5 +35,13 @@ export const importTripsCSV = async (file: File) => {
   const res = await axios.post(API_URL + "/import-csv", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return res.data;
+};
+
+export const createReservation = async (reservation: any) => {
+  const res = await axios.post(
+    import.meta.env.VITE_API_URL + "/api/reservations",
+    reservation
+  );
   return res.data;
 };

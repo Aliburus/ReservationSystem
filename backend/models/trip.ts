@@ -8,4 +8,7 @@ export interface Trip {
   date: Date;
   price: number;
   status?: "active" | "cancelled";
+  departureTime?: string;
+  arrivalTime?: string;
+  duration?: string;
 }

@@ -8,9 +8,14 @@ export const getAllReservations = async (
   res: Response
 ): Promise<void> => {
   const db = getDB();
+  const { trip_id } = req.query;
+  let filter: any = {};
+  if (trip_id && typeof trip_id === "string") {
+    filter.trip_id = new ObjectId(trip_id);
+  }
   const reservations = await db
     .collection<Reservation>("reservations")
-    .find()
+    .find(filter)
     .toArray();
   res.json(reservations);
 };

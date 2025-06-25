@@ -25,9 +25,19 @@ export const createTrip = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  console.log("GELEN TRIP BODY:", req.body);
   try {
     const db = getDB();
-    const { bus_id, from, to, date, price } = req.body;
+    const {
+      bus_id,
+      from,
+      to,
+      date,
+      price,
+      departureTime,
+      arrivalTime,
+      duration,
+    } = req.body;
 
     // Zorunlu alan kontrolü
     if (!bus_id || !ObjectId.isValid(bus_id)) {
@@ -35,24 +45,133 @@ export const createTrip = async (
       return;
     }
 
-    if (!from || !to || !date || !price) {
-      res.status(400).json({ error: "Kalkış, varış, tarih ve fiyat zorunlu" });
+    if (!from || !to || !date || !price || !departureTime || !arrivalTime) {
+      res.status(400).json({
+        error:
+          "Kalkış, varış, tarih, fiyat, kalkış saati ve varış saati zorunlu",
+      });
+      return;
+    }
+
+    // Tarih bugünden önce olamaz
+    const now = new Date();
+    const tripDate = new Date(date);
+    if (tripDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+      res.status(400).json({ error: "Tarih bugünden önce olamaz" });
+      return;
+    }
+
+    // Kalkış saati varıştan sonra olamaz (gün değişimi dahil)
+    const [depHour, depMin] = departureTime.split(":").map(Number);
+    const [arrHour, arrMin] = arrivalTime.split(":").map(Number);
+    let depTotal = depHour * 60 + depMin;
+    let arrTotal = arrHour * 60 + arrMin;
+    // Eğer varış saati kalkıştan küçükse, ertesi gün varış varsayılır
+    if (arrTotal <= depTotal) arrTotal += 24 * 60;
+    if (arrTotal - depTotal <= 0) {
+      res.status(400).json({ error: "Varış saati kalkıştan sonra olmalı" });
+      return;
+    }
+
+    // Aynı otobüsün aynı gün önceki seferleriyle zincir ve 6 saat kuralı
+    const startOfDay = new Date(
+      tripDate.getFullYear(),
+      tripDate.getMonth(),
+      tripDate.getDate()
+    );
+    const endOfDay = new Date(
+      tripDate.getFullYear(),
+      tripDate.getMonth(),
+      tripDate.getDate() + 1
+    );
+    const tripsSameDay = await db
+      .collection<Trip>("trips")
+      .find({
+        bus_id: new ObjectId(bus_id),
+        date: { $gte: startOfDay, $lt: endOfDay },
+        status: { $ne: "cancelled" },
+      })
+      .toArray();
+    // Yeni eklenecek seferi de diziye ekle
+    tripsSameDay.push({
+      _id: new ObjectId(),
+      from,
+      to,
+      departureTime,
+      arrivalTime,
+      bus_id: new ObjectId(bus_id),
+      date: tripDate,
+      price: Number(price),
+      status: "active",
+      duration: duration || "",
+    });
+    // Zincir ve 6 saat kuralı: Aynı otobüs aynı gün sadece tek zincir oluşturabilir
+    if (tripsSameDay.length > 0) {
+      // Zinciri kalkış saatine göre sırala
+      tripsSameDay.sort((a, b) => {
+        const [aH, aM] = (a.departureTime || "00:00").split(":").map(Number);
+        const [bH, bM] = (b.departureTime || "00:00").split(":").map(Number);
+        return aH * 60 + aM - (bH * 60 + bM);
+      });
+      const lastTrip = tripsSameDay[tripsSameDay.length - 1];
+      // Zincirin son varış noktası yeni kalkış noktası olmalı
+      if (lastTrip.to !== from) {
+        res.status(400).json({
+          error:
+            "Otobüsün yeni seferi, zincirin son varış noktasından başlamalı.",
+        });
+        return;
+      }
+      // 6 saat kuralı
+      const [lastArrHour, lastArrMin] = (lastTrip.arrivalTime || "00:00")
+        .split(":")
+        .map(Number);
+      const [currDepHour, currDepMin] = departureTime.split(":").map(Number);
+      let lastArrTotal = lastArrHour * 60 + lastArrMin;
+      let currDepTotal = currDepHour * 60 + currDepMin;
+      if (currDepTotal <= lastArrTotal) currDepTotal += 24 * 60;
+      if (currDepTotal - lastArrTotal < 360) {
+        res.status(400).json({
+          error:
+            "Otobüsün yeni seferi, zincirin son varıştan en az 6 saat sonra olmalı.",
+        });
+        return;
+      }
+    }
+
+    // Aynı otobüs aynı gün birden fazla sefere atanamaz
+    const busTripExists = await db.collection<Trip>("trips").findOne({
+      bus_id: new ObjectId(bus_id),
+      date: { $gte: startOfDay, $lt: endOfDay },
+      status: { $ne: "cancelled" },
+    });
+    if (busTripExists) {
+      res
+        .status(400)
+        .json({ error: "Bu otobüs bu tarihte başka bir sefere atanmış" });
       return;
     }
 
     const trip: Trip = {
+      ...req.body,
       bus_id: new ObjectId(bus_id),
       from,
       to,
       date: new Date(date),
       price: Number(price),
+      departureTime,
+      arrivalTime,
+      duration,
       status: "active",
     };
 
     const result = await db.collection<Trip>("trips").insertOne(trip);
     res.status(201).json({
       message: "Sefer başarıyla oluşturuldu",
-      trip: { ...trip, _id: result.insertedId },
+      trip: {
+        ...trip,
+        _id: result.insertedId,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: "Sefer oluşturulamadı" });
@@ -76,6 +195,92 @@ export const updateTrip = async (
     // Tarih güncellemesi varsa Date objesine çevir
     if (update.date) {
       update.date = new Date(update.date);
+    }
+
+    // Validasyonlar (tarih, saat, otobüs)
+    if (update.date) {
+      const now = new Date();
+      if (
+        update.date < new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      ) {
+        res.status(400).json({ error: "Tarih bugünden önce olamaz" });
+        return;
+      }
+    }
+    if (update.departureTime && update.arrivalTime) {
+      const [depHour, depMin] = update.departureTime.split(":").map(Number);
+      const [arrHour, arrMin] = update.arrivalTime.split(":").map(Number);
+      let depTotal = depHour * 60 + depMin;
+      let arrTotal = arrHour * 60 + arrMin;
+      if (arrTotal <= depTotal) arrTotal += 24 * 60;
+      if (arrTotal - depTotal <= 0) {
+        res.status(400).json({ error: "Varış saati kalkıştan sonra olmalı" });
+        return;
+      }
+    }
+    if (update.bus_id && update.date) {
+      const startOfDay = new Date(
+        update.date.getFullYear(),
+        update.date.getMonth(),
+        update.date.getDate()
+      );
+      const endOfDay = new Date(
+        update.date.getFullYear(),
+        update.date.getMonth(),
+        update.date.getDate() + 1
+      );
+      const tripsSameDay = await db
+        .collection<Trip>("trips")
+        .find({
+          bus_id: new ObjectId(update.bus_id),
+          date: { $gte: startOfDay, $lt: endOfDay },
+          status: { $ne: "cancelled" },
+          _id: { $ne: new ObjectId(id) },
+        })
+        .toArray();
+      tripsSameDay.push({
+        _id: new ObjectId(),
+        from: update.from,
+        to: update.to,
+        departureTime: update.departureTime,
+        arrivalTime: update.arrivalTime,
+        bus_id: new ObjectId(update.bus_id),
+        date: update.date,
+        price: update.price || 0,
+        status: "active",
+        duration: update.duration || "",
+      });
+      if (tripsSameDay.length > 0) {
+        tripsSameDay.sort((a, b) => {
+          const [aH, aM] = (a.departureTime || "00:00").split(":").map(Number);
+          const [bH, bM] = (b.departureTime || "00:00").split(":").map(Number);
+          return aH * 60 + aM - (bH * 60 + bM);
+        });
+        const lastTrip = tripsSameDay[tripsSameDay.length - 1];
+        if (lastTrip.to !== update.from) {
+          res.status(400).json({
+            error:
+              "Otobüsün yeni seferi, zincirin son varış noktasından başlamalı.",
+          });
+          return;
+        }
+        const [lastArrHour, lastArrMin] = (lastTrip.arrivalTime || "00:00")
+          .split(":")
+          .map(Number);
+        const [currDepHour, currDepMin] = (update.departureTime || "00:00")
+          .split(":")
+          .map(Number);
+        let lastArrTotal = lastArrHour * 60 + lastArrMin;
+        let currDepTotal = currDepHour * 60 + currDepMin;
+        if (currDepTotal <= lastArrTotal) currDepTotal += 24 * 60;
+        if (currDepTotal - lastArrTotal < 360) {
+          res.status(400).json({
+            error:
+              "Otobüsün yeni seferi, zincirin son varıştan en az 6 saat sonra olmalı.",
+          });
+          return;
+        }
+      }
     }
 
     await db
@@ -139,6 +344,9 @@ export const importTripsCSV = async (
         date: new Date(row.date),
         price: Number(row.price),
         bus_id: new ObjectId(row.bus_id),
+        departureTime: row.departureTime,
+        arrivalTime: row.arrivalTime,
+        duration: row.duration,
         status: "active",
       });
     })
