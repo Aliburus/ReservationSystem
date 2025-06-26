@@ -52,3 +52,7 @@ Modern kullanıcı dostu otobüs bileti rezervasyon ve yönetim sistemi. Sefer, 
 ## Lisans
 
 MIT
+
+## Ekran Görüntüleri
+
+Uygulamanın örnek ekran görüntüleri `screenshots` klasöründe bulunmaktadır.
