@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 
 export interface Trip {
   _id?: ObjectId;
+  trip_id: string;
   bus_id: ObjectId;
   from: string;
   to: string;
@@ -11,4 +12,5 @@ export interface Trip {
   departureTime?: string;
   arrivalTime?: string;
   duration?: string;
+  drivers?: ObjectId[];
 }

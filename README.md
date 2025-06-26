@@ -1,10 +1,10 @@
 # Otobüs Rezervasyon Sistemi
 
-## Açıklama (Description)
+## Açıklama
 
-Modern, kullanıcı dostu bir otobüs bileti rezervasyon ve yönetim sistemi. Sefer ekleme, koltuk seçimi, rezervasyon, yönetici paneli ve daha fazlası!
+Modern kullanıcı dostu otobüs bileti rezervasyon ve yönetim sistemi. Sefer, otobüs, şoför, rezervasyon yönetimi ve gelir raporları tek panelde.
 
-## Kurulum (Installation)
+## Kurulum
 
 1. **Projeyi klonlayın:**
    ```bash
@@ -23,29 +23,32 @@ Modern, kullanıcı dostu bir otobüs bileti rezervasyon ve yönetim sistemi. Se
    npm install
    npm run dev
    ```
-4. `.env` dosyalarını backend ve frontend için oluşturun (gerekirse).
+4. `.env` dosyalarını backend ve frontend için oluşturun (örnek: `VITE_API_URL` ve Mongo bağlantısı).
 
-## Kullanım (Usage)
+## Kullanım
 
-- Ana sayfadan seferleri görüntüleyin.
-- Sefer detayına girip koltuk seçin ve rezervasyon yapın.
-- Yönetici panelinden sefer ekleyin, düzenleyin veya silin.
+- Seferleri ve koltuk durumunu anlık görüntüleyin.
+- Koltuk seçip hızlıca rezervasyon yapın.
+- Yönetici panelinden sefer, otobüs, şoför ve rezervasyonları yönetin.
+- Toplu fiyat güncelleme, gelir/hasılat raporu alın.
+- Modern ve sade arayüzle kolay kullanım.
 
-## Özellikler (Features)
+## Temel Özellikler
 
-- Sefer ve otobüs yönetimi
-- Koltuk haritası ve seçimi
-- Rezervasyon oluşturma ve düzenleme
-- Gerçek zamanlı koltuk durumu
-- Yönetici paneli
-- Modern ve responsive arayüz
+- Sefer, otobüs ve şoför yönetimi
+- Koltuk haritası ve anlık doluluk
+- Rezervasyon oluşturma, düzenleme, iptal
+- Toplu fiyat güncelleme (yüzde, sabit, tarih/rota bazlı)
+- Gelir/hasılat hesaplama
+- Minimal ve modern yönetici paneli
+- Türkçe ve kullanıcı dostu hata/başarı mesajları
 
-## Kullanılan Teknolojiler (Tech Stack)
+## Teknolojiler
 
 - **Frontend:** React, TypeScript, TailwindCSS, Vite
 - **Backend:** Node.js, Express, TypeScript, MongoDB
-- **Diğer:** Axios, Lucide React, date-fns
+- **Ekstra:** Axios, Lucide React, date-fns
 
-## Lisans (License)
+## Lisans
 
 MIT

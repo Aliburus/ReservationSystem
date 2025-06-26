@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import { Trip } from "../models/trip";
 import { parse } from "csv-parse";
 import fs from "fs";
+import crypto from "crypto";
 
 export const getAllTrips = async (
   req: Request,
@@ -25,7 +26,6 @@ export const createTrip = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  console.log("GELEN TRIP BODY:", req.body);
   try {
     const db = getDB();
     const {
@@ -73,7 +73,7 @@ export const createTrip = async (
       return;
     }
 
-    // Aynı otobüsün aynı gün önceki seferleriyle zincir ve 6 saat kuralı
+    // Aynı otobüs aynı gün birden fazla sefere atanamaz
     const startOfDay = new Date(
       tripDate.getFullYear(),
       tripDate.getMonth(),
@@ -84,62 +84,6 @@ export const createTrip = async (
       tripDate.getMonth(),
       tripDate.getDate() + 1
     );
-    const tripsSameDay = await db
-      .collection<Trip>("trips")
-      .find({
-        bus_id: new ObjectId(bus_id),
-        date: { $gte: startOfDay, $lt: endOfDay },
-        status: { $ne: "cancelled" },
-      })
-      .toArray();
-    // Yeni eklenecek seferi de diziye ekle
-    tripsSameDay.push({
-      _id: new ObjectId(),
-      from,
-      to,
-      departureTime,
-      arrivalTime,
-      bus_id: new ObjectId(bus_id),
-      date: tripDate,
-      price: Number(price),
-      status: "active",
-      duration: duration || "",
-    });
-    // Zincir ve 6 saat kuralı: Aynı otobüs aynı gün sadece tek zincir oluşturabilir
-    if (tripsSameDay.length > 0) {
-      // Zinciri kalkış saatine göre sırala
-      tripsSameDay.sort((a, b) => {
-        const [aH, aM] = (a.departureTime || "00:00").split(":").map(Number);
-        const [bH, bM] = (b.departureTime || "00:00").split(":").map(Number);
-        return aH * 60 + aM - (bH * 60 + bM);
-      });
-      const lastTrip = tripsSameDay[tripsSameDay.length - 1];
-      // Zincirin son varış noktası yeni kalkış noktası olmalı
-      if (lastTrip.to !== from) {
-        res.status(400).json({
-          error:
-            "Otobüsün yeni seferi, zincirin son varış noktasından başlamalı.",
-        });
-        return;
-      }
-      // 6 saat kuralı
-      const [lastArrHour, lastArrMin] = (lastTrip.arrivalTime || "00:00")
-        .split(":")
-        .map(Number);
-      const [currDepHour, currDepMin] = departureTime.split(":").map(Number);
-      let lastArrTotal = lastArrHour * 60 + lastArrMin;
-      let currDepTotal = currDepHour * 60 + currDepMin;
-      if (currDepTotal <= lastArrTotal) currDepTotal += 24 * 60;
-      if (currDepTotal - lastArrTotal < 360) {
-        res.status(400).json({
-          error:
-            "Otobüsün yeni seferi, zincirin son varıştan en az 6 saat sonra olmalı.",
-        });
-        return;
-      }
-    }
-
-    // Aynı otobüs aynı gün birden fazla sefere atanamaz
     const busTripExists = await db.collection<Trip>("trips").findOne({
       bus_id: new ObjectId(bus_id),
       date: { $gte: startOfDay, $lt: endOfDay },
@@ -152,6 +96,16 @@ export const createTrip = async (
       return;
     }
 
+    // Otobüse atanmış şoförleri bul
+    const assignedDrivers = await db
+      .collection("drivers")
+      .find({ assignedBus: new ObjectId(bus_id) })
+      .toArray();
+    const driverIds = assignedDrivers.map((d: any) => d._id);
+
+    const randomTripId = () =>
+      crypto.randomBytes(4).toString("hex").toUpperCase();
+
     const trip: Trip = {
       ...req.body,
       bus_id: new ObjectId(bus_id),
@@ -163,14 +117,23 @@ export const createTrip = async (
       arrivalTime,
       duration,
       status: "active",
+      trip_id: "", // geçici, aşağıda set edilecek
+      drivers: driverIds,
     };
 
     const result = await db.collection<Trip>("trips").insertOne(trip);
+    // trip_id'yi benzersiz random olarak güncelle
+    const tripIdStr = randomTripId();
+    await db
+      .collection<Trip>("trips")
+      .updateOne({ _id: result.insertedId }, { $set: { trip_id: tripIdStr } });
+
     res.status(201).json({
       message: "Sefer başarıyla oluşturuldu",
       trip: {
         ...trip,
         _id: result.insertedId,
+        trip_id: tripIdStr,
       },
     });
   } catch (error) {
@@ -249,6 +212,7 @@ export const updateTrip = async (
         price: update.price || 0,
         status: "active",
         duration: update.duration || "",
+        trip_id: "",
       });
       if (tripsSameDay.length > 0) {
         tripsSameDay.sort((a, b) => {
@@ -318,6 +282,11 @@ export const deleteTrip = async (
       return;
     }
 
+    // Sefer silinmeden önce tüm rezervasyonları sil
+    await db
+      .collection("reservations")
+      .deleteMany({ trip_id: new ObjectId(id) });
+
     await db.collection<Trip>("trips").deleteOne({ _id: new ObjectId(id) });
     res.json({ message: "Sefer silindi" });
   } catch (error) {
@@ -348,6 +317,7 @@ export const importTripsCSV = async (
         arrivalTime: row.arrivalTime,
         duration: row.duration,
         status: "active",
+        trip_id: "",
       });
     })
     .on("end", async () => {
@@ -402,7 +372,19 @@ export const getTripStats = async (
               ],
             },
             toplam_hasilat: {
-              $multiply: [{ $size: "$reservations" }, "$price"],
+              $sum: {
+                $map: {
+                  input: {
+                    $filter: {
+                      input: "$reservations",
+                      as: "r",
+                      cond: { $eq: ["$$r.status", "active"] },
+                    },
+                  },
+                  as: "r",
+                  in: { $ifNull: ["$$r.price", 0] },
+                },
+              },
             },
           },
         },
@@ -411,5 +393,86 @@ export const getTripStats = async (
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: "İstatistikler alınamadı" });
+  }
+};
+
+export const updateTripDrivers = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const db = getDB();
+    const { id } = req.params;
+    const { drivers } = req.body;
+    if (!ObjectId.isValid(id)) {
+      res.status(400).json({ error: "Geçersiz sefer ID" });
+      return;
+    }
+    await db.collection<Trip>("trips").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          drivers: (drivers || []).map((d: string) => new ObjectId(d)),
+        },
+      }
+    );
+    res.json({ message: "Şoförler güncellendi" });
+  } catch (error) {
+    res.status(500).json({ error: "Şoförler güncellenemedi" });
+  }
+};
+
+export const updateTripsBulkPrice = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const db = getDB();
+    const { startDate, endDate, type, value, from, to, all } = req.body;
+    if (!type || value === undefined) {
+      res.status(400).json({ error: "Güncelleme türü ve değer zorunlu." });
+      return;
+    }
+    let filter: any = { status: { $ne: "cancelled" as any } };
+    if (!all) {
+      if (!startDate || !endDate) {
+        res.status(400).json({ error: "Tarih aralığı seçmelisiniz." });
+        return;
+      }
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        res.status(400).json({ error: "Geçerli bir tarih aralığı girin." });
+        return;
+      }
+      filter.date = { $gte: start, $lte: end };
+      if (from) filter.from = from;
+      if (to) filter.to = to;
+    }
+    let update: any = {};
+    if (type === "percent") {
+      update = { $mul: { price: 1 + value / 100 } };
+    } else if (type === "add") {
+      update = { $inc: { price: value } };
+    } else if (type === "set") {
+      update = { $set: { price: value } };
+    } else {
+      res.status(400).json({ error: "Geçersiz güncelleme tipi." });
+      return;
+    }
+    const result = await db
+      .collection<Trip>("trips")
+      .updateMany(filter, update);
+    if (result.modifiedCount === 0) {
+      res.status(400).json({
+        error: "Seçilen kriterlere uygun güncellenecek sefer bulunamadı.",
+      });
+      return;
+    }
+    res.json({ message: `Toplam ${result.modifiedCount} sefer güncellendi.` });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Toplu fiyat güncellenemedi. Lütfen tekrar deneyin." });
   }
 };

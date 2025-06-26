@@ -45,3 +45,22 @@ export const createReservation = async (reservation: any) => {
   );
   return res.data;
 };
+
+export const updateTripDrivers = async (id: string, drivers: string[]) => {
+  const res = await axios.put(`${API_URL}/${id}/drivers`, { drivers });
+  return res.data;
+};
+
+export const bulkUpdateTripPrices = async (data: {
+  startDate: string;
+  endDate: string;
+  type: string;
+  value: number;
+  from?: string;
+  to?: string;
+  bus_id?: string;
+  all?: boolean;
+}) => {
+  const res = await axios.post(API_URL + "/bulk-update-price", data);
+  return res.data;
+};

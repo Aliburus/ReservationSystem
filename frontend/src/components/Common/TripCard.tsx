@@ -1,42 +1,47 @@
 import React from "react";
-import {
-  MapPin,
-  Clock,
-  Users,
-  Star,
-  Calendar,
-  Edit2,
-  Trash2,
-} from "lucide-react";
-import { Trip } from "../../pages/admin/AdminTrips";
+import { MapPin, Clock, Users, Star, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { Link } from "react-router-dom";
 
 interface TripCardProps {
-  trip: Trip;
-  onSelect: (trip: Trip) => void;
+  trip: any;
+  onSelect: (trip: any) => void;
   showSelectButton?: boolean;
+  occupancy?: number;
 }
 
 const TripCard: React.FC<TripCardProps> = ({
   trip,
   onSelect,
   showSelectButton = true,
+  occupancy,
 }) => {
-  const getAvailabilityColor = () => {
-    const percentage =
-      ((trip.availableSeats ?? 0) / (trip.totalSeats ?? 0)) * 100;
-    if (percentage > 50) return "text-green-600";
-    if (percentage > 20) return "text-yellow-600";
-    return "text-red-600";
-  };
+  // Fiyatı yuvarla
+  const displayPrice =
+    trip.price && trip.price > 0 ? Math.round(trip.price) : "";
 
-  const getAvailabilityBg = () => {
-    const percentage =
-      ((trip.availableSeats ?? 0) / (trip.totalSeats ?? 0)) * 100;
-    if (percentage > 50) return "bg-green-50 border-green-200";
-    if (percentage > 20) return "bg-yellow-50 border-yellow-200";
-    return "bg-red-50 border-red-200";
+  // Tarih ve saat formatlama fonksiyonu
+  const getFormattedDateTime = () => {
+    if (!trip?.departureDate || !trip?.departureTime || !trip?.arrivalTime)
+      return "";
+    const dateObj = new Date(trip.departureDate);
+    const [depHour, depMin] = trip.departureTime.split(":").map(Number);
+    const [arrHour, arrMin] = trip.arrivalTime.split(":").map(Number);
+    let arrivalDateObj = new Date(dateObj);
+    if (arrHour < depHour || (arrHour === depHour && arrMin < depMin)) {
+      arrivalDateObj.setDate(arrivalDateObj.getDate() + 1);
+    }
+    return (
+      format(dateObj, "d MMMM", { locale: tr }) +
+      ", " +
+      trip.departureTime +
+      " - " +
+      (arrivalDateObj.getDate() !== dateObj.getDate()
+        ? format(arrivalDateObj, "d MMMM", { locale: tr }) + " "
+        : "") +
+      trip.arrivalTime
+    );
   };
 
   return (
@@ -58,13 +63,23 @@ const TripCard: React.FC<TripCardProps> = ({
             </div>
             <div
               className={`px-3 py-1 rounded-lg border ml-4 text-sm font-medium ${
-                trip.status === "cancelled"
+                trip.status === "İptal"
                   ? "bg-red-50 text-red-600 border-red-200"
-                  : "bg-green-50 text-green-700 border-green-200"
+                  : trip.status === "Geçti"
+                  ? "bg-gray-100 text-gray-500 border-gray-200"
+                  : trip.status === "active" || trip.status === "Aktif"
+                  ? "bg-green-50 text-green-700 border-green-200"
+                  : "bg-gray-100 text-gray-500 border-gray-200"
               }`}
               style={{ minWidth: "60px", textAlign: "center" }}
             >
-              {trip.status === "cancelled" ? "İptal" : "Aktif"}
+              {trip.status === "İptal"
+                ? "İptal"
+                : trip.status === "Geçti"
+                ? "Geçti"
+                : trip.status === "active" || trip.status === "Aktif"
+                ? "Aktif"
+                : trip.status}
             </div>
           </div>
 
@@ -94,16 +109,10 @@ const TripCard: React.FC<TripCardProps> = ({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4 text-sm text-gray-700">
-            {trip.departureDate && (
-              <div className="flex items-center space-x-1">
-                <Calendar className="h-4 w-4 mr-1" />
-                <span>
-                  {format(new Date(trip.departureDate), "d MMMM yyyy", {
-                    locale: tr,
-                  })}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center space-x-1">
+              <Calendar className="h-4 w-4 mr-1" />
+              <span>{getFormattedDateTime()}</span>
+            </div>
             {trip.busType && <span className="mx-2">|</span>}
             {trip.busType && (
               <div className="flex items-center space-x-1">
@@ -111,21 +120,38 @@ const TripCard: React.FC<TripCardProps> = ({
               </div>
             )}
           </div>
+          <div className="flex items-center space-x-2 space-y-2">
+            <Star className="h-4 w-4 text-yellow-500 mt-2" />
+            <span>Doluluk:</span>
+            <span>%{occupancy ?? 0}</span>
+          </div>
         </div>
 
         {/* Price and Action */}
         <div className="flex items-center justify-between lg:flex-col lg:items-end mt-4 lg:mt-0">
           <div className="text-right">
-            <div className="text-2xl font-bold text-gray-900">
-              ₺{trip.price}
-            </div>
+            <span className="text-2xl font-bold text-gray-900 ml-2">
+              {displayPrice && `₺${displayPrice}`}
+            </span>
             {showSelectButton && (
               <button
                 onClick={() => onSelect(trip)}
-                disabled={(trip.availableSeats ?? 0) === 0}
+                disabled={
+                  (trip.availableSeats ?? 0) === 0 ||
+                  trip.status === "Geçti" ||
+                  trip.status === "İptal"
+                }
                 className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
-                {(trip.availableSeats ?? 0) > 0 ? "Koltuk Seç" : "Dolu"}
+                {(trip.availableSeats ?? 0) > 0 &&
+                trip.status !== "Geçti" &&
+                trip.status !== "İptal"
+                  ? "Koltuk Seç"
+                  : trip.status === "Geçti"
+                  ? "Sefer Geçti"
+                  : trip.status === "İptal"
+                  ? "Sefer İptal"
+                  : "Dolu"}
               </button>
             )}
           </div>

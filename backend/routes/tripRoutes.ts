@@ -6,6 +6,8 @@ import {
   deleteTrip,
   importTripsCSV,
   getTripStats,
+  updateTripDrivers,
+  updateTripsBulkPrice,
 } from "../controllers/tripController";
 import multer from "multer";
 
@@ -18,5 +20,7 @@ router.put("/:id", updateTrip);
 router.delete("/:id", deleteTrip);
 router.post("/import-csv", upload.single("file"), importTripsCSV);
 router.get("/stats/analytics", getTripStats);
+router.put("/:id/drivers", updateTripDrivers);
+router.post("/bulk-update-price", updateTripsBulkPrice);
 
 export default router;

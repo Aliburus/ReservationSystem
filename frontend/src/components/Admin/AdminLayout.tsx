@@ -8,6 +8,7 @@ import {
   BarChart3,
   Menu,
   X,
+  Route as RouteIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,10 +23,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Seferler", href: "/admin/trips", icon: Bus },
-    { name: "Kullanıcılar", href: "/admin/users", icon: Users },
+    { name: "Seferler", href: "/admin/trips", icon: RouteIcon },
+    { name: "Otobüsler", href: "/admin/buses", icon: Bus },
+    { name: "Şoförler", href: "/admin/drivers", icon: Users },
     { name: "Rezervasyonlar", href: "/admin/reservations", icon: Calendar },
-    { name: "Raporlar", href: "/admin/reports", icon: BarChart3 },
   ];
 
   const isActive = (href: string) => {

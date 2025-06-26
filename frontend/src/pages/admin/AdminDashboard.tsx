@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Bus,
   Calendar,
@@ -6,9 +6,34 @@ import {
   CreditCard,
   BarChart3,
   Activity,
+  Users,
+  DollarSign,
+  MapPin,
+  Clock,
 } from "lucide-react";
-import { mockTrips, mockReservations } from "../../data/mockData";
 import { format } from "date-fns";
+import { getReservations } from "../../services/reservationService";
+import { getTrips } from "../../services/tripService";
+import { getBuses } from "../../services/busService";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import Spinner from "../../components/Common/Spinner";
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState({
@@ -19,316 +44,506 @@ const AdminDashboard: React.FC = () => {
     completedTrips: 0,
     cancelledReservations: 0,
   });
-
-  const [recentReservations] = useState(mockReservations.slice(0, 5));
-  const [popularRoutes, setPopularRoutes] = useState<
-    { route: string; count: number }[]
+  const [recentReservations, setRecentReservations] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`;
+  });
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [yearLabels, setYearLabels] = useState<string[]>([]);
+  const [selectedYearForTotal, setSelectedYearForTotal] = useState(() =>
+    new Date().getFullYear()
+  );
+  const [selectedYearForMonthlyChart, setSelectedYearForMonthlyChart] =
+    useState(() => new Date().getFullYear());
+  const [selectedYearForRouteChart, setSelectedYearForRouteChart] = useState(
+    () => new Date().getFullYear()
+  );
+  const [yearlyRevenue, setYearlyRevenue] = useState(0);
+  const [yearlyData, setYearlyData] = useState<number[]>([]);
+  const [topRoutes, setTopRoutes] = useState<
+    { route: string; revenue: number }[]
   >([]);
+  const [selectedMonthForRouteChart, setSelectedMonthForRouteChart] =
+    useState(0);
+  const [avgOccupancy, setAvgOccupancy] = useState(0);
+  const [buses, setBuses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Calculate statistics
-    const totalTrips = mockTrips.length;
-    const totalReservations = mockReservations.length;
-    const totalRevenue = mockReservations
-      .filter((r) => r.status === "confirmed")
-      .reduce((sum, r) => sum + r.totalPrice, 0);
-
-    const today = new Date().toISOString().split("T")[0];
-    const activeTrips = mockTrips.filter(
-      (t) => t.departureDate >= today
-    ).length;
-    const completedTrips = mockTrips.filter(
-      (t) => t.departureDate < today
-    ).length;
-    const cancelledReservations = mockReservations.filter(
-      (r) => r.status === "cancelled"
-    ).length;
-
-    setStats({
-      totalTrips,
-      totalReservations,
-      totalRevenue,
-      activeTrips,
-      completedTrips,
-      cancelledReservations,
-    });
-
-    // Calculate popular routes
-    const routeCount: { [key: string]: number } = {};
-    mockReservations.forEach((reservation) => {
-      const trip = mockTrips.find((t) => t.id === reservation.tripId);
-      if (trip) {
-        const route = `${trip.origin} - ${trip.destination}`;
-        routeCount[route] = (routeCount[route] || 0) + 1;
-      }
-    });
-
-    const sortedRoutes = Object.entries(routeCount)
-      .map(([route, count]) => ({ route, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    setPopularRoutes(sortedRoutes);
-  }, []);
-
-  const statCards = [
-    {
-      title: "Toplam Sefer",
-      value: stats.totalTrips,
-      icon: Bus,
-      color: "bg-blue-500",
-      change: "+12%",
-      changeType: "positive",
-    },
-    {
-      title: "Aktif Seferler",
-      value: stats.activeTrips,
-      icon: Bus,
-      color: "bg-green-500",
-      change: "+8%",
-      changeType: "positive",
-    },
-    {
-      title: "Toplam Rezervasyon",
-      value: stats.totalReservations,
-      icon: Calendar,
-      color: "bg-purple-500",
-      change: "+23%",
-      changeType: "positive",
-    },
-    {
-      title: "Toplam Gelir",
-      value: `₺${stats.totalRevenue.toLocaleString()}`,
-      icon: CreditCard,
-      color: "bg-orange-500",
-      change: "+15%",
-      changeType: "positive",
-    },
-    {
-      title: "Tamamlanan Seferler",
-      value: stats.completedTrips,
-      icon: Activity,
-      color: "bg-indigo-500",
-      change: "+8%",
-      changeType: "positive",
-    },
-    {
-      title: "İptal Edilen Rezervasyonlar",
-      value: stats.cancelledReservations,
-      icon: TrendingUp,
-      color: "bg-red-500",
-      change: "+8%",
-      changeType: "positive",
-    },
-    {
-      title: "Ortalama Rezervasyon",
-      value: `₺${Math.round(
-        stats.totalRevenue / Math.max(stats.totalReservations, 1)
-      )}`,
-      icon: BarChart3,
-      color: "bg-yellow-500",
-      change: "+8%",
-      changeType: "positive",
-    },
-  ];
+    const fetchData = async () => {
+      setLoading(true);
+      const busesData = await getBuses();
+      setBuses(busesData);
+      const trips = await getTrips();
+      const reservations = await getReservations();
+      // Seçili ayın başlangıcı ve bitişi
+      const [yearForMonth, month] = selectedMonth.split("-").map(Number);
+      const start = new Date(yearForMonth, month - 1, 1, 0, 0, 0);
+      const end = new Date(yearForMonth, month, 0, 23, 59, 59); // ayın son günü
+      // Her rezervasyon için ilgili trip'i bul
+      const filtered = reservations.filter((r: any) => {
+        if (r.status !== "active") return false;
+        // Öncelik: created_at, yoksa trip.date
+        let date: Date | null = null;
+        if (r.created_at) date = new Date(r.created_at);
+        else {
+          const trip = trips.find(
+            (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+          );
+          if (trip && trip.date) date = new Date(trip.date);
+        }
+        if (!date) return false;
+        return date >= start && date <= end;
+      });
+      // Her rezervasyon için fiyatı bul
+      const revenue = filtered.reduce((sum: number, r: any) => {
+        if (r.totalPrice) return sum + r.totalPrice;
+        const trip = trips.find(
+          (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+        );
+        return sum + (trip?.price || 0);
+      }, 0);
+      setMonthlyRevenue(revenue);
+      const totalTrips = trips.length;
+      const totalReservations = reservations.length;
+      const totalRevenue = reservations
+        .filter((r: any) => r.status === "active")
+        .reduce((sum: number, r: any) => sum + (r.totalPrice || 0), 0);
+      const today = new Date().toISOString().split("T")[0];
+      const activeTrips = trips.filter(
+        (t: any) => (t.date || t.departureDate) >= today
+      ).length;
+      const completedTrips = trips.filter(
+        (t: any) => (t.date || t.departureDate) < today
+      ).length;
+      const cancelledReservations = reservations.filter(
+        (r: any) => r.status === "cancelled"
+      ).length;
+      setStats({
+        totalTrips,
+        totalReservations,
+        totalRevenue,
+        activeTrips,
+        completedTrips,
+        cancelledReservations,
+      });
+      setRecentReservations(reservations.slice(0, 5));
+      // Yıllık gelir kutusu için
+      const yearlyStart = new Date(selectedYearForTotal, 0, 1, 0, 0, 0);
+      const yearlyEnd = new Date(selectedYearForTotal, 11, 31, 23, 59, 59);
+      const yearlyFiltered = reservations.filter((r: any) => {
+        if (r.status !== "active") return false;
+        const trip = trips.find(
+          (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+        );
+        if (!trip || !trip.date) return false;
+        const tripDate = new Date(trip.date);
+        return tripDate >= yearlyStart && tripDate <= yearlyEnd;
+      });
+      const yearlyRevenueCalc = yearlyFiltered.reduce((sum: number, r: any) => {
+        if (r.totalPrice) return sum + r.totalPrice;
+        const trip = trips.find(
+          (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+        );
+        return sum + (trip?.price || 0);
+      }, 0);
+      setYearlyRevenue(yearlyRevenueCalc);
+      // Aylık gelir chartı için
+      const months = Array.from({ length: 12 }, (_, i) => i);
+      const monthLabels = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      setYearLabels(monthLabels);
+      const monthlyTotals = months.map((m) => {
+        const start = new Date(selectedYearForMonthlyChart, m, 1, 0, 0, 0);
+        const end = new Date(selectedYearForMonthlyChart, m + 1, 0, 23, 59, 59);
+        const filtered = reservations.filter((r: any) => {
+          if (r.status !== "active") return false;
+          const trip = trips.find(
+            (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+          );
+          if (!trip || !trip.date) return false;
+          const tripDate = new Date(trip.date);
+          return tripDate >= start && tripDate <= end;
+        });
+        return filtered.reduce((sum: number, r: any) => {
+          if (r.totalPrice) return sum + r.totalPrice;
+          const trip = trips.find(
+            (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+          );
+          return sum + (trip?.price || 0);
+        }, 0);
+      });
+      setYearlyData(monthlyTotals);
+      // Rota chartı için
+      const routeRevenue: { [route: string]: number } = {};
+      reservations.forEach((r: any) => {
+        if (r.status !== "active") return;
+        const trip = trips.find(
+          (t: any) => t._id === r.trip_id || t.trip_id === r.trip_id
+        );
+        if (!trip || !trip.date) return;
+        const tripDate = new Date(trip.date);
+        if (tripDate.getFullYear() !== selectedYearForRouteChart) return;
+        if (
+          selectedMonthForRouteChart !== 0 &&
+          tripDate.getMonth() + 1 !== selectedMonthForRouteChart
+        )
+          return;
+        const route = `${trip.from} - ${trip.to}`;
+        const price = r.totalPrice || trip.price || 0;
+        routeRevenue[route] = (routeRevenue[route] || 0) + price;
+      });
+      const sortedRoutes = Object.entries(routeRevenue)
+        .map(([route, revenue]) => ({ route, revenue }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+      setTopRoutes(sortedRoutes);
+      // Ortalama doluluk oranı hesaplama
+      const validTrips = trips.filter((t: any) => t.bus_id && t.date);
+      let totalSeats = 0;
+      let totalSold = 0;
+      validTrips.forEach((trip: any) => {
+        const bus = busesData.find((b: any) => b._id === trip.bus_id);
+        if (!bus) return;
+        totalSeats += bus.seat_count;
+        const tripReservations = reservations.filter(
+          (r: any) => r.trip_id === trip._id && r.status === "active"
+        );
+        tripReservations.forEach((r: any) => {
+          if (Array.isArray(r.seats)) totalSold += r.seats.length;
+          else totalSold += 1;
+        });
+      });
+      setAvgOccupancy(
+        totalSeats > 0 ? Math.round((totalSold / totalSeats) * 100) : 0
+      );
+      setLoading(false);
+    };
+    fetchData();
+  }, [
+    selectedYearForTotal,
+    selectedYearForMonthlyChart,
+    selectedYearForRouteChart,
+    selectedMonthForRouteChart,
+  ]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-600 mt-2">
-          Sistem genel bakış ve istatistikler
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 max-w-6xl mx-auto justify-center">
-        {statCards.map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-6">
+      {loading ? (
+        <Spinner />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <Bus className="h-5 w-5 text-blue-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">
-                  {stat.title}
-                </p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">
-                  {stat.value}
-                </p>
-                <div className="flex items-center mt-2">
-                  <span
-                    className={`text-xs font-medium ${
-                      stat.changeType === "positive"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {stat.change}
-                  </span>
-                  <span className="text-xs text-gray-500 ml-1">bu ay</span>
+                <div className="text-xs text-gray-500">Toplam Sefer</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {stats.totalTrips}
                 </div>
               </div>
-              <div className={`${stat.color} p-3 rounded-full`}>
-                <stat.icon className="h-6 w-6 text-white" />
+            </div>
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <Calendar className="h-5 w-5 text-green-500" />
+              <div>
+                <div className="text-xs text-gray-500">Aktif Seferler</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {stats.activeTrips}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Recent Reservations */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Son Rezervasyonlar
-            </h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {recentReservations.map((reservation) => {
-                const trip = mockTrips.find((t) => t.id === reservation.tripId);
-
-                return (
-                  <div
-                    key={reservation.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {trip?.origin} → {trip?.destination}
-                        </span>
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            reservation.status === "confirmed"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {reservation.status === "confirmed"
-                            ? "Onaylandı"
-                            : "İptal"}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {format(
-                          new Date(reservation.bookingDate),
-                          "dd/MM/yyyy HH:mm"
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        ₺{reservation.totalPrice}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Koltuk: {reservation.seatNumbers.join(", ")}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <Activity className="h-5 w-5 text-indigo-500" />
+              <div>
+                <div className="text-xs text-gray-500">Tamamlanan Seferler</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {stats.completedTrips}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Popular Routes */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Popüler Güzergahlar
-            </h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {popularRoutes.map((route, index) => (
-                <div
-                  key={route.route}
-                  className="flex items-center justify-between"
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <BarChart3 className="h-5 w-5 text-yellow-500" />
+              <div>
+                <div className="text-xs text-gray-500">Toplam Rezervasyon</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {stats.totalReservations}
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <CreditCard className="h-5 w-5 text-orange-500" />
+              <div>
+                <div className="text-xs text-gray-500">Yıllık Gelir</div>
+                <div className="text-lg font-bold text-gray-900">
+                  ₺{yearlyRevenue.toLocaleString("tr-TR")}
+                </div>
+                <select
+                  className="mt-1 border rounded px-2 py-1 text-xs"
+                  value={selectedYearForTotal}
+                  onChange={(e) =>
+                    setSelectedYearForTotal(Number(e.target.value))
+                  }
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center text-sm font-medium">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{route.route}</p>
-                      <p className="text-sm text-gray-600">
-                        {route.count} rezervasyon
-                      </p>
-                    </div>
-                  </div>
-                  <div className="w-20 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{
-                        width: `${
-                          (route.count /
-                            Math.max(...popularRoutes.map((r) => r.count))) *
-                          100
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
+                  {Array.from(
+                    { length: 6 },
+                    (_, i) => new Date().getFullYear() - 2 + i
+                  ).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <TrendingUp className="h-5 w-5 text-red-500" />
+              <div>
+                <div className="text-xs text-gray-500">
+                  İptal Edilen Rezervasyonlar
                 </div>
-              ))}
+                <div className="text-lg font-bold text-gray-900">
+                  {stats.cancelledReservations}
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border p-4 flex items-center gap-3 shadow-sm">
+              <BarChart3 className="h-5 w-5 text-cyan-500" />
+              <div>
+                <div className="text-xs text-gray-500">Ortalama Doluluk</div>
+                <div className="text-lg font-bold text-gray-900">
+                  %{avgOccupancy}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-100 p-3 rounded-full">
-              <Activity className="h-6 w-6 text-indigo-600" />
+          <div className="bg-white rounded-md border p-2 shadow-sm mb-3">
+            <div className="flex items-center mb-1">
+              <h2 className="text-sm font-semibold mr-2">Yıllık Gelir (₺)</h2>
+              <select
+                className="border rounded px-1 py-0.5 text-xs"
+                value={selectedYearForMonthlyChart}
+                onChange={(e) =>
+                  setSelectedYearForMonthlyChart(Number(e.target.value))
+                }
+              >
+                {Array.from(
+                  { length: 6 },
+                  (_, i) => new Date().getFullYear() - 2 + i
+                ).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Tamamlanan Seferler
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.completedTrips}
-              </p>
-            </div>
+            <Bar
+              data={{
+                labels: yearLabels,
+                datasets: [
+                  {
+                    label: "",
+                    data: yearlyData,
+                    backgroundColor: "#3b82f6",
+                    borderRadius: 2,
+                    barPercentage: 0.25,
+                    categoryPercentage: 0.4,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                plugins: {
+                  legend: { display: false },
+                  title: { display: false },
+                  tooltip: { enabled: true },
+                },
+                scales: {
+                  x: {
+                    grid: { display: false },
+                    ticks: { color: "#94a3b8", font: { size: 10 } },
+                  },
+                  y: {
+                    grid: { color: "#f1f5f9" },
+                    ticks: {
+                      color: "#94a3b8",
+                      font: { size: 10 },
+                      callback: (v: any) => `₺${v}`,
+                    },
+                    beginAtZero: true,
+                  },
+                },
+                layout: { padding: { left: 0, right: 0, top: 0, bottom: 0 } },
+                elements: { bar: { borderWidth: 0 } },
+              }}
+              height={80}
+            />
           </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center space-x-3">
-            <div className="bg-red-100 p-3 rounded-full">
-              <TrendingUp className="h-6 w-6 text-red-600" />
+          {topRoutes.length > 0 ? (
+            <div className="bg-white rounded-md border p-2 shadow-sm mb-3">
+              <div className="flex items-center mb-1">
+                <h2 className="text-sm font-semibold mr-2">
+                  En Çok Gelir Getiren 10 Rota
+                </h2>
+                <select
+                  className="border rounded px-1 py-0.5 text-xs mr-1"
+                  value={selectedYearForRouteChart}
+                  onChange={(e) =>
+                    setSelectedYearForRouteChart(Number(e.target.value))
+                  }
+                >
+                  {Array.from(
+                    { length: 6 },
+                    (_, i) => new Date().getFullYear() - 2 + i
+                  ).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="border rounded px-1 py-0.5 text-xs"
+                  value={selectedMonthForRouteChart}
+                  onChange={(e) =>
+                    setSelectedMonthForRouteChart(Number(e.target.value))
+                  }
+                >
+                  <option value={0}>Tüm Aylar</option>
+                  {[
+                    "Ocak",
+                    "Şubat",
+                    "Mart",
+                    "Nisan",
+                    "Mayıs",
+                    "Haziran",
+                    "Temmuz",
+                    "Ağustos",
+                    "Eylül",
+                    "Ekim",
+                    "Kasım",
+                    "Aralık",
+                  ].map((m, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Bar
+                data={{
+                  labels: topRoutes.map((r) => r.route),
+                  datasets: [
+                    {
+                      label: "",
+                      data: topRoutes.map((r) => r.revenue),
+                      backgroundColor: "#6366f1",
+                      borderRadius: 2,
+                      barPercentage: 0.25,
+                      categoryPercentage: 0.4,
+                    },
+                  ],
+                }}
+                options={{
+                  indexAxis: "y",
+                  responsive: true,
+                  plugins: {
+                    legend: { display: false },
+                    title: { display: false },
+                    tooltip: { enabled: true },
+                  },
+                  scales: {
+                    x: {
+                      grid: { color: "#f1f5f9" },
+                      ticks: {
+                        color: "#94a3b8",
+                        font: { size: 10 },
+                        callback: (v: any) => `₺${v}`,
+                      },
+                      beginAtZero: true,
+                    },
+                    y: {
+                      grid: { display: false },
+                      ticks: { color: "#94a3b8", font: { size: 10 } },
+                    },
+                  },
+                  layout: { padding: { left: 0, right: 0, top: 0, bottom: 0 } },
+                  elements: { bar: { borderWidth: 0 } },
+                }}
+                height={80}
+              />
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                İptal Edilen Rezervasyonlar
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.cancelledReservations}
-              </p>
+          ) : (
+            <div className="bg-white rounded-md border p-2 shadow-sm mb-3">
+              <div className="flex items-center mb-1">
+                <h2 className="text-sm font-semibold mr-2">
+                  En Çok Gelir Getiren 10 Rota
+                </h2>
+                <select
+                  className="border rounded px-1 py-0.5 text-xs mr-1"
+                  value={selectedYearForRouteChart}
+                  onChange={(e) =>
+                    setSelectedYearForRouteChart(Number(e.target.value))
+                  }
+                >
+                  {Array.from(
+                    { length: 6 },
+                    (_, i) => new Date().getFullYear() - 2 + i
+                  ).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="border rounded px-1 py-0.5 text-xs"
+                  value={selectedMonthForRouteChart}
+                  onChange={(e) =>
+                    setSelectedMonthForRouteChart(Number(e.target.value))
+                  }
+                >
+                  <option value={0}>Tüm Aylar</option>
+                  {[
+                    "Ocak",
+                    "Şubat",
+                    "Mart",
+                    "Nisan",
+                    "Mayıs",
+                    "Haziran",
+                    "Temmuz",
+                    "Ağustos",
+                    "Eylül",
+                    "Ekim",
+                    "Kasım",
+                    "Aralık",
+                  ].map((m, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="text-center text-gray-400 py-6 text-xs">
+                Veri bulunamadı
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center space-x-3">
-            <div className="bg-yellow-100 p-3 rounded-full">
-              <BarChart3 className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">
-                Ortalama Rezervasyon
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                ₺
-                {Math.round(
-                  stats.totalRevenue / Math.max(stats.totalReservations, 1)
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

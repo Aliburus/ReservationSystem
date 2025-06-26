@@ -11,6 +11,8 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTrips from "./pages/admin/AdminTrips";
 import AdminReservations from "./pages/admin/AdminReservations";
 import TripDetailPage from "./pages/TripDetailPage";
+import AdminBuses from "./pages/admin/AdminBuses";
+import AdminDrivers from "./pages/admin/AdminDrivers";
 
 function App() {
   return (
@@ -50,10 +52,26 @@ function App() {
           }
         />
         <Route
+          path="/admin/buses"
+          element={
+            <AdminLayout>
+              <AdminBuses />
+            </AdminLayout>
+          }
+        />
+        <Route
           path="/admin/reservations"
           element={
             <AdminLayout>
               <AdminReservations />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/drivers"
+          element={
+            <AdminLayout>
+              <AdminDrivers />
             </AdminLayout>
           }
         />

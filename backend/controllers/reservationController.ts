@@ -58,7 +58,10 @@ export const createReservation = async (
       return;
     }
 
-    // Yeni rezervasyon oluştur
+    // Trip fiyatını al
+    const trip = await db
+      .collection("trips")
+      .findOne({ _id: new ObjectId(trip_id) });
     const reservation: Reservation = {
       trip_id: new ObjectId(trip_id),
       seat_number,
@@ -67,6 +70,7 @@ export const createReservation = async (
       phone,
       status: "active",
       created_at: new Date(),
+      price: trip?.price || 0,
     };
 
     const result = await db

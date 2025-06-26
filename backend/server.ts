@@ -8,6 +8,7 @@ import tripRoutes from "./routes/tripRoutes";
 import reservationRoutes from "./routes/reservationRoutes";
 import busRoutes from "./routes/busRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import driverRoutes from "./routes/driverRoutes";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +27,7 @@ app.use("/api/trips", tripRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/buses", busRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/drivers", driverRoutes);
 
 app.get("/", (req, res) => {
   res.send("Bus Company Reservation System Backend (MongoDB + TypeScript)");

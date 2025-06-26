@@ -9,4 +9,5 @@ export interface Reservation {
   phone: string;
   status?: "active" | "cancelled";
   created_at?: Date;
+  price?: number;
 }

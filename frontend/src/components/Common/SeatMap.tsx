@@ -88,13 +88,6 @@ const SeatMap: React.FC<SeatMapProps> = ({
         <h3 className="text-lg font-semibold text-gray-900">Koltuk Seçimi</h3>
       </div>
 
-      {/* Driver section */}
-      <div className="mb-4 flex justify-end">
-        <div className="bg-gray-200 rounded p-2 text-xs text-gray-600">
-          Şoför
-        </div>
-      </div>
-
       {/* Seat grid */}
       <div className="space-y-2 mb-6">
         {Array.from({ length: layout.rows }, (_, rowIndex) => {
@@ -132,23 +125,15 @@ const SeatMap: React.FC<SeatMapProps> = ({
         })}
       </div>
 
-      {/* Legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-          <span className="text-gray-600">Boş</span>
+      {/* Lejant */}
+      <div className="flex gap-6 mt-4">
+        <div className="flex items-center gap-2">
+          <span className="w-5 h-5 rounded bg-green-100 border border-green-400 block"></span>
+          <span>Boş</span>
         </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-blue-500 border border-blue-600 rounded"></div>
-          <span className="text-gray-600">Seçili</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-          <span className="text-gray-600">Dolu</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-          <span className="text-gray-600">Mevcut Değil</span>
+        <div className="flex items-center gap-2">
+          <span className="w-5 h-5 rounded bg-red-100 border border-red-400 block"></span>
+          <span>Dolu</span>
         </div>
       </div>
     </div>
