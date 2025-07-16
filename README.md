@@ -1,58 +1,67 @@
-# Otobüs Rezervasyon Sistemi
+# Bus Reservation System
 
-## Açıklama
+## Description
 
-Modern kullanıcı dostu otobüs bileti rezervasyon ve yönetim sistemi. Sefer, otobüs, şoför, rezervasyon yönetimi ve gelir raporları tek panelde.
+A modern, user-friendly bus ticket reservation and management system. Manage trips, buses, drivers, reservations, and revenue reports from a single panel.
 
-## Kurulum
+## Installation
 
-1. **Projeyi klonlayın:**
+1. **Clone the project:**
    ```bash
    git clone <repo-url>
    cd Project
    ```
-2. **Backend kurulumu:**
+2. **Backend setup:**
    ```bash
    cd backend
    npm install
    npm start
    ```
-3. **Frontend kurulumu:**
+3. **Frontend setup:**
    ```bash
    cd ../frontend
    npm install
    npm run dev
    ```
-4. `.env` dosyalarını backend ve frontend için oluşturun (örnek: `VITE_API_URL` ve Mongo bağlantısı).
+4. Create `.env` files for both backend and frontend (e.g., `VITE_API_URL` and Mongo connection).
 
-## Kullanım
+## Usage
 
-- Seferleri ve koltuk durumunu anlık görüntüleyin.
-- Koltuk seçip hızlıca rezervasyon yapın.
-- Yönetici panelinden sefer, otobüs, şoför ve rezervasyonları yönetin.
-- Toplu fiyat güncelleme, gelir/hasılat raporu alın.
-- Modern ve sade arayüzle kolay kullanım.
+- Instantly view trips and seat status.
+- Select seats and make quick reservations.
+- Manage trips, buses, drivers, and reservations from the admin panel.
+- Bulk price updates, get revenue reports.
+- Easy to use with a modern and clean interface.
 
-## Temel Özellikler
+## Key Features
 
-- Sefer, otobüs ve şoför yönetimi
-- Koltuk haritası ve anlık doluluk
-- Rezervasyon oluşturma, düzenleme, iptal
-- Toplu fiyat güncelleme (yüzde, sabit, tarih/rota bazlı)
-- Gelir/hasılat hesaplama
-- Minimal ve modern yönetici paneli
-- Türkçe ve kullanıcı dostu hata/başarı mesajları
+- Trip, bus, and driver management
+- Seat map and real-time occupancy
+- Create, edit, and cancel reservations
+- Bulk price updates (percentage, fixed, by date/route)
+- Revenue calculation
+- Minimal and modern admin panel
+- Turkish and user-friendly error/success messages
 
-## Teknolojiler
+## Technologies
 
 - **Frontend:** React, TypeScript, TailwindCSS, Vite
 - **Backend:** Node.js, Express, TypeScript, MongoDB
-- **Ekstra:** Axios, Lucide React, date-fns
+- **Extras:** Axios, Lucide React, date-fns
 
-## Lisans
+## License
 
 MIT
 
-## Ekran Görüntüleri
+## Screenshots
 
-Uygulamanın örnek ekran görüntüleri `screenshots` klasöründe bulunmaktadır.
+Sample screenshots of the application can be found in the `screenshots` folder.
+
+![Dashboard](screenshots/Dashboard.jpeg)
+![Bus List](screenshots/Bus.jpeg)
+![Bus Details](screenshots/BusDetails.jpeg)
+![Drivers](screenshots/Drivers.jpeg)
+![Reservations](screenshots/Reservations.jpeg)
+![Trips](screenshots/Trips.jpeg)
+![Trip Details](screenshots/TripDetails.jpeg)
+![Price Update Modal](screenshots/PriceUpdateModal.jpeg)
